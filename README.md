@@ -1,6 +1,7 @@
 # Skill Translator
 
 ![screenshot](screenshot.png)
+![screenshot](example.png)
 ![GitHub stars](https://img.shields.io/github/stars/spontaneousai/skill-translator?style=flat)
 
 将 Claude 的 Skill（`.skill` 或 `SKILL.md`）转译为其他 LLM 平台可用的 System Prompt 格式，纯静态单页，适合部署在 GitHub Pages。
