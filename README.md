@@ -1,4 +1,4 @@
-# Skill Translator
+# Skill Translator 跨平台SKill转译器
  
 ![screenshot](screenshot.png)
 ![screenshot](example.png)
