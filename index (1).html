@@ -1,0 +1,506 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Skill Translator — Claude Skill 跨平台转译</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <style>
+    :root {
+      --bg: #f6f7f9;
+      --surface: #ffffff;
+      --text: #1a1d23;
+      --muted: #5c6370;
+      --border: #e1e4e8;
+      --accent: #0969da;
+      --accent-hover: #0550ae;
+      --danger-bg: #fff5f5;
+      --danger-text: #b42318;
+      --danger-border: #fecdca;
+      --code-bg: #f0f2f5;
+      --shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+      --radius: 10px;
+      --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      --font-mono: ui-monospace, "SF Mono", Menlo, Monaco, Consolas, monospace;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #0d1117;
+        --surface: #161b22;
+        --text: #e6edf3;
+        --muted: #8b949e;
+        --border: #30363d;
+        --accent: #58a6ff;
+        --accent-hover: #79b8ff;
+        --danger-bg: #3d1418;
+        --danger-text: #f85149;
+        --danger-border: #6e2c33;
+        --code-bg: #21262d;
+        --shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
+      }
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: var(--font-sans);
+      font-size: 15px;
+      line-height: 1.55;
+      color: var(--text);
+      background: var(--bg);
+    }
+
+    a { color: var(--accent); text-decoration: none; transition: color 0.15s ease; }
+    a:hover { color: var(--accent-hover); }
+
+    .wrap { max-width: 920px; margin: 0 auto; padding: 24px 20px 48px; }
+
+    header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 28px;
+      padding-bottom: 20px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .brand h1 { margin: 0 0 6px; font-size: 1.35rem; font-weight: 650; letter-spacing: -0.02em; }
+    .brand p { margin: 0; color: var(--muted); font-size: 0.92rem; }
+
+    .gh-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 14px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: var(--surface);
+      box-shadow: var(--shadow);
+      font-size: 0.88rem;
+      white-space: nowrap;
+      transition: border-color 0.15s ease, background 0.15s ease;
+    }
+    .gh-link:hover { border-color: var(--accent); background: var(--code-bg); }
+    .gh-link svg { width: 18px; height: 18px; fill: currentColor; }
+
+    section { margin-bottom: 22px; }
+
+    .dropzone {
+      border: 1.5px dashed var(--border);
+      border-radius: var(--radius);
+      padding: 22px 18px;
+      text-align: center;
+      background: var(--surface);
+      box-shadow: var(--shadow);
+      transition: border-color 0.15s ease, background 0.15s ease;
+    }
+    .dropzone.dragover { border-color: var(--accent); background: var(--code-bg); }
+    .dropzone p { margin: 0 0 8px; color: var(--muted); font-size: 0.9rem; }
+
+    textarea {
+      width: 100%;
+      min-height: 200px;
+      margin-top: 14px;
+      padding: 12px 14px;
+      font-family: var(--font-mono);
+      font-size: 13px;
+      line-height: 1.5;
+      color: var(--text);
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      resize: vertical;
+      transition: border-color 0.15s ease;
+    }
+    textarea:focus { outline: none; border-color: var(--accent); }
+
+    .toolbar { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 14px; align-items: center; }
+
+    button, .file-label {
+      font-family: var(--font-sans);
+      font-size: 0.9rem;
+      padding: 8px 16px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      color: var(--text);
+      cursor: pointer;
+      transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease;
+    }
+    button:hover, .file-label:hover { border-color: var(--accent); background: var(--code-bg); }
+
+    button.primary {
+      background: var(--accent);
+      color: #fff;
+      border-color: var(--accent);
+    }
+    button.primary:hover {
+      background: var(--accent-hover);
+      border-color: var(--accent-hover);
+    }
+
+    .file-label { display: inline-block; }
+    input[type="file"] { display: none; }
+
+    .badge-row { margin-top: 12px; min-height: 28px; }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 12px;
+      font-size: 0.82rem;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      color: var(--muted);
+    }
+    .badge strong { color: var(--text); font-weight: 600; }
+
+    .alert {
+      margin-top: 12px;
+      padding: 10px 14px;
+      border-radius: var(--radius);
+      font-size: 0.9rem;
+      border: 1px solid var(--danger-border);
+      background: var(--danger-bg);
+      color: var(--danger-text);
+    }
+
+    .meta { display: flex; flex-wrap: wrap; gap: 14px 20px; margin: 14px 0 10px; font-size: 0.88rem; color: var(--muted); }
+    .meta span strong { color: var(--text); font-weight: 600; }
+
+    .tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--border); margin-bottom: 12px; flex-wrap: wrap; }
+
+    .tab {
+      padding: 10px 14px;
+      font-size: 0.88rem;
+      border: none;
+      background: transparent;
+      color: var(--muted);
+      cursor: pointer;
+      border-radius: 8px 8px 0 0;
+      margin-bottom: -1px;
+      border-bottom: 2px solid transparent;
+      transition: color 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+    }
+    .tab:hover { color: var(--text); background: var(--code-bg); }
+    .tab.active { color: var(--accent); border-bottom-color: var(--accent); font-weight: 600; }
+
+    .panel { position: relative; }
+
+    .output {
+      width: 100%;
+      min-height: 280px;
+      padding: 14px 16px;
+      font-family: var(--font-mono);
+      font-size: 12.5px;
+      line-height: 1.55;
+      white-space: pre-wrap;
+      word-break: break-word;
+      color: var(--text);
+      background: var(--code-bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      margin: 0;
+    }
+
+    .copy-row { margin-top: 10px; display: flex; justify-content: flex-end; }
+    .copy-row button { min-width: 100px; }
+
+    footer {
+      margin-top: 40px;
+      padding-top: 20px;
+      border-top: 1px solid var(--border);
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
+      font-size: 0.85rem;
+      color: var(--muted);
+    }
+
+    .hits { display: inline-flex; align-items: center; gap: 8px; opacity: 0.85; }
+    .hits img { height: 20px; vertical-align: middle; border-radius: 4px; }
+
+    @media (prefers-color-scheme: dark) {
+      .hits img { opacity: 0.88; filter: brightness(0.92) contrast(1.05); }
+    }
+
+    h2.section-title { font-size: 0.95rem; font-weight: 600; margin: 0 0 10px; color: var(--text); }
+    .hidden { display: none !important; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <div class="brand">
+        <h1>Skill Translator</h1>
+        <p>Claude Skill 跨平台转译</p>
+      </div>
+      <a class="gh-link" href="https://github.com/spontaneousai/skill-translator" target="_blank" rel="noopener noreferrer">
+        <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+        Star on GitHub
+      </a>
+    </header>
+
+    <main>
+      <section>
+        <h2 class="section-title">导入</h2>
+        <div id="dropzone" class="dropzone">
+          <p>拖拽 <strong>.skill</strong> 或 <strong>SKILL.md</strong> 到此处，或在下框粘贴内容</p>
+          <textarea id="source" placeholder="粘贴 SKILL.md 全文，或使用下方按钮选择文件…" spellcheck="false"></textarea>
+          <div class="toolbar">
+            <button type="button" class="primary" id="btnTranslate">转译</button>
+            <label class="file-label" for="fileInput">选择文件</label>
+            <input type="file" id="fileInput" accept=".skill,.md,.txt" />
+            <button type="button" id="btnSample">载入示例</button>
+            <button type="button" id="btnClear">清空</button>
+          </div>
+          <div class="badge-row" id="badgeRow"></div>
+          <div id="errorBox" class="alert hidden" role="alert"></div>
+        </div>
+      </section>
+
+      <section id="resultSection" class="hidden">
+        <h2 class="section-title">转译结果</h2>
+        <div class="meta" id="metaRow"></div>
+        <div class="tabs" id="tabs"></div>
+        <div id="panels"></div>
+      </section>
+    </main>
+
+    <footer>
+      <div class="hits">
+        <img
+          src="https://visitor-badge.laobi.icu/badge?page_id=spontaneousai.skill-translator"
+          alt="访问计数"
+        />
+      </div>
+      <p style="margin:0;max-width:520px">本工具在浏览器本地解析文件，不会上传你的 Skill 内容。</p>
+    </footer>
+  </div>
+
+  <script>
+    (function () {
+      var state = { filename: "", fileKind: "", refMap: {}, allRefPaths: [], lastInlined: [], lastUninlined: [] };
+      var $ = function (id) { return document.getElementById(id); };
+      var REF_PATTERN = /references\/[\w\-./]+\.(?:md|txt)/gi;
+
+      function showError(msg) { var box = $("errorBox"); box.textContent = msg; box.classList.remove("hidden"); }
+      function clearError() { $("errorBox").classList.add("hidden"); }
+
+      function setBadge() {
+        var row = $("badgeRow");
+        if (!state.filename && !Object.keys(state.refMap).length) { row.innerHTML = ""; return; }
+        var kindLabel = state.fileKind === "skill" ? ".skill" : state.fileKind === "md" ? ".md" : state.fileKind === "txt" ? ".txt" : "—";
+        var n = state.allRefPaths.length;
+        row.innerHTML = '<span class="badge"><strong>' + escapeHtml(state.filename || "未命名") + "</strong> · 类型 " + kindLabel + " · 资源 <strong>" + n + "</strong> 个</span>";
+      }
+
+      function escapeHtml(s) {
+        return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+      }
+
+      function parseSimpleYamlBlock(raw) {
+        var lines = raw.split(/\r?\n/);
+        var meta = {};
+        for (var i = 0; i < lines.length; i++) {
+          var m = lines[i].match(/^([\w-]+):\s*(.*)$/);
+          if (m) {
+            var val = m[2].trim();
+            if ((val.charAt(0) === '"' && val.charAt(val.length - 1) === '"') || (val.charAt(0) === "'" && val.charAt(val.length - 1) === "'")) val = val.slice(1, -1);
+            meta[m[1]] = val;
+          }
+        }
+        return meta;
+      }
+
+      function parseSkillMd(text) {
+        text = text.replace(/^\uFEFF/, "");
+        if (text.indexOf("---") !== 0) return { name: "", description: "", body: text.trim() };
+        var rest = text.slice(3);
+        var endIdx = rest.search(/\r?\n---\r?\n/);
+        if (endIdx === -1) return { name: "", description: "", body: text.trim(), error: "未找到完整的 YAML frontmatter（需要以 --- 开始与结束）。" };
+        var fmRaw = rest.slice(0, endIdx);
+        var body = rest.slice(endIdx).replace(/^\r?\n---\r?\n/, "");
+        var meta = parseSimpleYamlBlock(fmRaw);
+        return { name: meta.name || "", description: meta.description || "", body: body.replace(/^\r?\n/, "") };
+      }
+
+      function normalizeZipPath(path) { return path.replace(/\\/g, "/").replace(/^\/+/, ""); }
+
+      function findSkillMdPath(files) {
+        for (var i = 0; i < files.length; i++) { var p = normalizeZipPath(files[i]); if (p.toLowerCase() === "skill.md") return p; }
+        for (var j = 0; j < files.length; j++) { var q = normalizeZipPath(files[j]); if (q.toLowerCase().endsWith("/skill.md")) return q; }
+        return null;
+      }
+
+      function loadZipSkill(arrayBuffer) {
+        return JSZip.loadAsync(arrayBuffer).then(function (zip) {
+          var paths = Object.keys(zip.files).filter(function (p) { return !zip.files[p].dir; });
+          var skillPath = findSkillMdPath(paths);
+          if (!skillPath) throw new Error("压缩包中未找到 SKILL.md。");
+          var refPaths = paths.filter(function (p) { var n = normalizeZipPath(p); return /^references\//i.test(n) && /\.(md|txt)$/i.test(n); });
+          var tasks = [zip.file(skillPath).async("string")];
+          var refMap = {};
+          refPaths.forEach(function (rp) {
+            var norm = normalizeZipPath(rp).toLowerCase();
+            tasks.push(zip.file(rp).async("string").then(function (content) { refMap[norm] = content; }));
+          });
+          return Promise.all(tasks).then(function (results) {
+            return { skillText: results[0], refMap: refMap, allRefPaths: refPaths.map(function (p) { return normalizeZipPath(p).toLowerCase(); }) };
+          });
+        });
+      }
+
+      function inlineReferences(body, refMap) {
+        var inlined = [], seen = {}, out = body;
+        var matches = body.match(REF_PATTERN);
+        if (!matches) return { text: out, inlined: [] };
+        matches.forEach(function (key) {
+          var k = key.replace(/\\/g, "/"), kLower = k.toLowerCase();
+          if (seen[kLower]) return;
+          seen[kLower] = true;
+          var content = refMap[kLower];
+          if (content === undefined) return;
+          var block = "\n\n<!-- inlined: " + kLower + " -->\n" + content.trim() + "\n<!-- end " + kLower + " -->\n\n";
+          var re = new RegExp(k.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "g");
+          out = out.replace(re, function () { if (inlined.indexOf(kLower) === -1) inlined.push(kLower); return block.trim(); });
+        });
+        return { text: out, inlined: inlined };
+      }
+
+      function countLines(s) { return s ? s.split(/\r?\n/).length : 0; }
+
+      function buildGenericPrompt(name, description, bodyInlined) {
+        var n = name || "（未命名 Skill）";
+        return ["# 角色定义", "你是 Claude Skill「" + n + "」所描述的专业助手。请严格遵循下方工作指令与用户上下文行事。", "", "# 激活条件", description || "（未提供 description：请在适当时机根据用户意图主动应用本技能。）", "", "# 工作指令", bodyInlined.trim()].join("\n");
+      }
+
+      function buildGemini(name, description, bodyInlined) {
+        var n = name || "unnamed-skill";
+        return ["【职责】" + (description || "根据用户请求执行「" + n + "」相关任务。"), "", "【工作方式】", "- 先澄清关键信息，再给出结构化输出。", "- 遵守以下指令正文（已内联引用资源）：", "", bodyInlined.trim()].join("\n");
+      }
+
+      function buildChatGPT(name, description, bodyInlined, uninlined) {
+        var lines = ["You are a Custom GPT behavior module for the skill: " + (name || "unnamed") + ".", "", "## Context / When to use", description || "Use when the user intent matches this skill.", "", "## Instructions", bodyInlined.trim()];
+        if (uninlined && uninlined.length) {
+          lines.push("", "## Knowledge 文件上传建议", "以下 references 中的文件未在正文中被引用内联，建议上传到 Custom GPT 的 Knowledge 以供检索：");
+          uninlined.forEach(function (p) { lines.push("- " + p); });
+        }
+        return lines.join("\n");
+      }
+
+      function renderResult(generic, gemini, chatgpt, meta) {
+        $("resultSection").classList.remove("hidden");
+        $("metaRow").innerHTML = '<span>Skill 名称：<strong>' + escapeHtml(meta.name || "（空）") + "</strong></span><span>指令行数：<strong>" + meta.lines + "</strong></span><span>内联文件数：<strong>" + meta.inlinedCount + "</strong></span>";
+        var tabs = $("tabs"), panels = $("panels");
+        tabs.innerHTML = ""; panels.innerHTML = "";
+        var tabDefs = [{ id: "t1", label: "通用 System Prompt", text: generic }, { id: "t2", label: "Gemini Gem", text: gemini }, { id: "t3", label: "ChatGPT Custom GPT", text: chatgpt }];
+        tabDefs.forEach(function (def, idx) {
+          var btn = document.createElement("button");
+          btn.type = "button"; btn.className = "tab" + (idx === 0 ? " active" : ""); btn.dataset.tab = def.id; btn.textContent = def.label;
+          tabs.appendChild(btn);
+          var panel = document.createElement("div");
+          panel.className = "panel" + (idx === 0 ? "" : " hidden"); panel.dataset.panel = def.id;
+          var pre = document.createElement("pre"); pre.className = "output"; pre.textContent = def.text;
+          var copyRow = document.createElement("div"); copyRow.className = "copy-row";
+          var copyBtn = document.createElement("button"); copyBtn.type = "button"; copyBtn.textContent = "复制"; copyBtn.dataset.copy = def.id;
+          copyRow.appendChild(copyBtn); panel.appendChild(pre); panel.appendChild(copyRow); panels.appendChild(panel);
+        });
+        tabs.querySelectorAll(".tab").forEach(function (b) {
+          b.addEventListener("click", function () {
+            var id = b.dataset.tab;
+            tabs.querySelectorAll(".tab").forEach(function (x) { x.classList.toggle("active", x.dataset.tab === id); });
+            panels.querySelectorAll(".panel").forEach(function (p) { p.classList.toggle("hidden", p.dataset.panel !== id); });
+          });
+        });
+        panels.querySelectorAll("button[data-copy]").forEach(function (btn) {
+          btn.addEventListener("click", function () {
+            var id = btn.dataset.copy;
+            var text = panels.querySelector('.panel[data-panel="' + id + '"]').querySelector("pre").textContent;
+            navigator.clipboard.writeText(text).then(function () { btn.textContent = "已复制 ✓"; setTimeout(function () { btn.textContent = "复制"; }, 2000); });
+          });
+        });
+      }
+
+      function getUninlined(allRefPaths, inlined) {
+        var set = {}; inlined.forEach(function (p) { set[p] = true; });
+        return allRefPaths.filter(function (p) { return !set[p]; });
+      }
+
+      function translateFromText(skillText) {
+        clearError();
+        var parsed = parseSkillMd(skillText);
+        if (parsed.error) { showError(parsed.error); $("resultSection").classList.add("hidden"); return; }
+        var inlineResult = inlineReferences(parsed.body, state.refMap);
+        var bodyFinal = inlineResult.text;
+        var uninlined = getUninlined(state.allRefPaths, inlineResult.inlined);
+        state.lastInlined = inlineResult.inlined; state.lastUninlined = uninlined;
+        renderResult(buildGenericPrompt(parsed.name, parsed.description, bodyFinal), buildGemini(parsed.name, parsed.description, bodyFinal), buildChatGPT(parsed.name, parsed.description, bodyFinal, uninlined), { name: parsed.name, lines: countLines(bodyFinal), inlinedCount: inlineResult.inlined.length });
+      }
+
+      function runTranslate() {
+        var raw = $("source").value.trim();
+        if (!raw) { showError("请先粘贴 SKILL.md 内容，或导入 .skill / .md 文件。"); $("resultSection").classList.add("hidden"); return; }
+        translateFromText($("source").value);
+      }
+
+      function applyFile(name, kind, text, refMap, allRefPaths) {
+        state.filename = name; state.fileKind = kind; state.refMap = refMap || {}; state.allRefPaths = allRefPaths || Object.keys(state.refMap);
+        $("source").value = text; setBadge(); clearError();
+      }
+
+      $("btnTranslate").addEventListener("click", runTranslate);
+
+      $("btnClear").addEventListener("click", function () {
+        $("source").value = ""; state.filename = ""; state.fileKind = ""; state.refMap = {}; state.allRefPaths = [];
+        setBadge(); clearError(); $("resultSection").classList.add("hidden");
+      });
+
+      $("btnSample").addEventListener("click", function () {
+        var skillMd = "---\nname: daily-standup-coach\ndescription: 当用户说\"今日站会\"、\"日报\"、\"standup\"时使用此技能，帮助用户整理思路并生成清晰的站会内容。\n---\n\n# Daily Standup Coach\n\n帮助用户快速整理每日站会内容，覆盖三个核心问题。\n\n## 工作流程\n1. 询问用户今天完成了什么\n2. 询问明天计划做什么  \n3. 询问是否有任何阻碍\n4. 生成格式化的站会内容\n\n参见 references/examples.md 中的示例。\n\n## 注意事项\n- 保持简洁，每项不超过两行\n- 如用户提供内容不完整，可适当追问\n";
+        var ex = "✅ 昨日完成：\n- 完成了用户登录模块单测\n- 修复了 #234 号 bug\n\n🔨 今日计划：\n- 开始开发通知系统\n\n🚧 阻碍/风险：\n- 等待后端 API 文档更新\n";
+        applyFile("SKILL.md（示例）", "md", skillMd, { "references/examples.md": ex }, ["references/examples.md"]);
+        runTranslate();
+      });
+
+      $("fileInput").addEventListener("change", function (e) {
+        var file = e.target.files && e.target.files[0]; e.target.value = "";
+        if (!file) return;
+        var name = file.name || "upload", lower = name.toLowerCase();
+        if (lower.endsWith(".skill")) {
+          var reader = new FileReader();
+          reader.onload = function () { loadZipSkill(reader.result).then(function (data) { applyFile(name, "skill", data.skillText, data.refMap, data.allRefPaths); }).catch(function (err) { showError(err.message || "解析 .skill 失败。"); $("resultSection").classList.add("hidden"); }); };
+          reader.readAsArrayBuffer(file); return;
+        }
+        if (lower.endsWith(".md") || lower.endsWith(".txt")) {
+          var tr = new FileReader();
+          tr.onload = function () { applyFile(name, lower.endsWith(".md") ? "md" : "txt", tr.result, {}, []); };
+          tr.readAsText(file); return;
+        }
+        showError("不支持的文件类型，请选择 .skill、.md 或 .txt。");
+      });
+
+      var dz = $("dropzone"), ta = $("source");
+      function onDragHover(e) { e.preventDefault(); e.stopPropagation(); dz.classList.add("dragover"); }
+      ["dragenter", "dragover"].forEach(function (ev) { dz.addEventListener(ev, onDragHover); ta.addEventListener(ev, onDragHover); });
+      dz.addEventListener("dragleave", function (e) { e.preventDefault(); e.stopPropagation(); if (!dz.contains(e.relatedTarget)) dz.classList.remove("dragover"); });
+      function handleFileDrop(e) {
+        e.preventDefault(); e.stopPropagation(); dz.classList.remove("dragover");
+        var files = e.dataTransfer.files; if (!files || !files.length) return;
+        var file = files[0], dt = new DataTransfer(); dt.items.add(file);
+        $("fileInput").files = dt.files; $("fileInput").dispatchEvent(new Event("change", { bubbles: true }));
+      }
+      dz.addEventListener("drop", handleFileDrop);
+      ta.addEventListener("drop", handleFileDrop);
+    })();
+  </script>
+</body>
+</html>
